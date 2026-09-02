@@ -14,26 +14,37 @@ from app.api.routes import forecasting as forecasting_routes
 from app.api.routes import digital_twin as digital_twin_routes
 from app.api.routes import simulation as simulation_routes
 from app.api.routes import scenarios as scenarios_routes
+from app.api.routes import assistant as assistant_routes
+from app.api.routes import admin as admin_routes
+from app.api.routes import reports as reports_routes
 from app.core.config import settings
-from app.core.database import Base, SessionLocal, engine
+from app.core.database import SessionLocal
 from app.core.security import decode_access_token
 from app.models.user import AnalyticsLog
 
 app = FastAPI(
     title="Digital Twin AI",
-    version="3.0.0",
-    description="Milestone 1 data collection + Milestone 2 ML forecasting + Milestone 3 Simulation Engine",
+    version="4.0.0",
+    description="Milestones 1–4: Data · ML Forecasting · Simulation Engine · Conversational AI",
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[origin.strip() for origin in settings.ALLOWED_ORIGINS.split(",") if origin.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-Base.metadata.create_all(bind=engine)
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    """Add security headers to every response."""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"]        = "DENY"
+    response.headers["X-XSS-Protection"]       = "1; mode=block"
+    response.headers["Referrer-Policy"]        = "strict-origin-when-cross-origin"
+    return response
 
 
 @app.middleware("http")
@@ -80,6 +91,9 @@ app.include_router(forecasting_routes.router,     prefix="/api/forecasting",    
 app.include_router(digital_twin_routes.router,    prefix="/api/digital-twin",   tags=["digital-twin"])
 app.include_router(simulation_routes.router,      prefix="/api/simulation",     tags=["simulation"])
 app.include_router(scenarios_routes.router,       prefix="/api/scenarios",      tags=["scenarios"])
+app.include_router(assistant_routes.router,       prefix="/api/assistant",      tags=["assistant"])
+app.include_router(admin_routes.router,           prefix="/api/admin",          tags=["admin"])
+app.include_router(reports_routes.router,         prefix="/api/reports",        tags=["reports"])
 
 
 @app.get("/health")

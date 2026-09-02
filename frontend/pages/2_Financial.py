@@ -1,4 +1,4 @@
-"""Digital Twin AI - Finance"""
+﻿"""Digital Twin AI - Finance"""
 import os, sys
 from collections import defaultdict
 from datetime import datetime
@@ -13,7 +13,8 @@ if _ROOT not in sys.path:
 from components.theme import inject_theme
 from components.ui import (
     badge, bootstrap_session, empty_state, metric_row,
-    page_header, render_sidebar, require_auth, section_header,
+    page_header, render_sidebar,
+    render_topbar, require_auth, section_header,
 )
 
 st.set_page_config(page_title="Finance - Digital Twin AI", page_icon="💰",
@@ -21,6 +22,7 @@ st.set_page_config(page_title="Finance - Digital Twin AI", page_icon="💰",
 inject_theme()
 bootstrap_session()
 render_sidebar()
+render_topbar("Finance")
 require_auth()
 
 client = st.session_state.api_client
@@ -107,8 +109,11 @@ if records:
                 hole=0.55, marker=dict(colors=_C),
                 textfont=dict(color="#E2E8F0", size=11),
             ))
-            fig2.update_layout(**_PL, height=260, showlegend=True,
-                               legend=dict(orientation="v", x=1.05, y=0.5))
+            fig2.update_layout(
+                **{**_PL, "legend": dict(orientation="v", x=1.05, y=0.5)},
+                height=260,
+                showlegend=True,
+            )
             st.plotly_chart(fig2, use_container_width=True)
         else:
             empty_state("🍕", "No expense records yet")
@@ -151,8 +156,11 @@ if records:
                 hole=0.55, marker=dict(colors=_C),
                 textfont=dict(color="#E2E8F0", size=11),
             ))
-            fig4.update_layout(**_PL, height=260, showlegend=True,
-                               legend=dict(orientation="v", x=1.05, y=0.5))
+            fig4.update_layout(
+                **{**_PL, "legend": dict(orientation="v", x=1.05, y=0.5)},
+                height=260,
+                showlegend=True,
+            )
             st.plotly_chart(fig4, use_container_width=True)
         else:
             empty_state("💚", "No income records yet")

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Digital Twin AI — Analytics
 """
 import os, sys
@@ -14,6 +14,7 @@ if _ROOT not in sys.path:
 from components.theme import inject_theme
 from components.ui import (
     bootstrap_session, require_auth, render_sidebar,
+    render_topbar,
     page_header, section_header, metric_row, empty_state,
 )
 
@@ -21,6 +22,7 @@ st.set_page_config(page_title="Analytics · Digital Twin AI", page_icon="📊", 
 inject_theme()
 bootstrap_session()
 render_sidebar()
+render_topbar("Analytics")
 require_auth()
 
 client = st.session_state.api_client
@@ -126,10 +128,11 @@ with col_end:
         textposition="outside",
         textfont=dict(color="#64748B", size=10),
     ))
-    fig2.update_layout(
-        **_PLOTLY_LAYOUT, height=280,
-        yaxis=dict(**_PLOTLY_LAYOUT["yaxis"], categoryorder="total ascending"),
-    )
+    endpoint_layout = _PLOTLY_LAYOUT.copy()
+    endpoint_layout["yaxis"] = {
+        **_PLOTLY_LAYOUT.get("yaxis", {}), "categoryorder": "total ascending"
+    }
+    fig2.update_layout(**endpoint_layout, height=280)
     st.plotly_chart(fig2, use_container_width=True)
 
 st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
@@ -158,9 +161,10 @@ with col_hist:
         x=ms_vals, nbinsx=20,
         marker_color="#7C3AED", opacity=0.85,
     ))
-    fig4.update_layout(**_PLOTLY_LAYOUT, height=240,
-                       xaxis=dict(**_PLOTLY_LAYOUT["xaxis"], title="ms"),
-                       yaxis=dict(**_PLOTLY_LAYOUT["yaxis"], title="Count"))
+    latency_layout = _PLOTLY_LAYOUT.copy()
+    latency_layout["xaxis"] = {**_PLOTLY_LAYOUT.get("xaxis", {}), "title": "ms"}
+    latency_layout["yaxis"] = {**_PLOTLY_LAYOUT.get("yaxis", {}), "title": "Count"}
+    fig4.update_layout(**latency_layout, height=240)
     st.plotly_chart(fig4, use_container_width=True)
 
 st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)

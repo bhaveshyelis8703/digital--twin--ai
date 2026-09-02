@@ -1,5 +1,5 @@
 @echo off
-title Digital Twin AI — Launcher
+title Digital Twin AI v4.0 — Launcher
 setlocal
 
 set "ROOT=%~dp0"
@@ -8,7 +8,8 @@ set "BACKEND_PORT=8000"
 set "FRONTEND_PORT=8501"
 
 echo ============================================
-echo  Digital Twin AI — Starting...
+echo  Digital Twin AI v4.0 — Starting...
+echo  Milestones 1–4 (AI Assistant + Reports)
 echo ============================================
 echo.
 
@@ -27,25 +28,37 @@ if not exist "%VENV%\streamlit.exe" (
 )
 
 REM ── Kill any leftover processes on those ports ──────────────────────────────
+echo [0/3] Cleaning up old processes...
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":%BACKEND_PORT% "  2^>nul') do (
     taskkill /f /pid %%a >nul 2>&1
 )
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":%FRONTEND_PORT% " 2^>nul') do (
     taskkill /f /pid %%a >nul 2>&1
 )
+timeout /t 1 /nobreak >nul
 
-REM ── Start backend ──────────────────────────────────────────────────────────
-echo [1/3] Starting backend on port %BACKEND_PORT%...
+REM ── Apply database migrations before starting the backend ──────────────────
+echo [1/4] Applying database migrations...
+"%VENV%\alembic.exe" -c "%ROOT%alembic.ini" upgrade head
+if errorlevel 1 (
+    echo [ERROR] Database migrations failed. Check the database and migration history.
+    pause
+    exit /b 1
+)
+
+REM ── Start backend with --reload so code changes are picked up ──────────────
+echo [2/4] Starting backend on port %BACKEND_PORT% (hot-reload enabled)...
 start "Digital Twin AI — Backend" /D "%ROOT%backend" "%VENV%\uvicorn.exe" ^
-    main:app --host 127.0.0.1 --port %BACKEND_PORT%
+    main:app --host 127.0.0.1 --port %BACKEND_PORT% --reload
 
 REM ── Wait until backend is actually accepting connections ───────────────────
-echo [2/3] Waiting for backend to be ready...
+echo [3/4] Waiting for backend to be ready...
 set "TRIES=0"
 :wait_loop
 set /a TRIES+=1
-if %TRIES% GTR 30 (
-    echo [ERROR] Backend did not start within 30 seconds. Check the backend window for errors.
+if %TRIES% GTR 40 (
+    echo [ERROR] Backend did not start within 40 seconds.
+    echo         Check the backend window for import or syntax errors.
     pause
     exit /b 1
 )
@@ -54,26 +67,35 @@ powershell -NoProfile -Command ^
     "try { $r=(New-Object Net.WebClient).DownloadString('http://127.0.0.1:%BACKEND_PORT%/health'); if($r -match 'ok'){exit 0} else {exit 1} } catch {exit 1}" >nul 2>&1
 if errorlevel 1 goto wait_loop
 
-echo        Backend is up ^(health check passed^).
+echo        Backend is up (health check passed).
 echo.
 
 REM ── Start frontend ─────────────────────────────────────────────────────────
-echo [3/3] Starting frontend on port %FRONTEND_PORT%...
+echo [4/4] Starting frontend on port %FRONTEND_PORT%...
 start "Digital Twin AI — Frontend" /D "%ROOT%" "%VENV%\streamlit.exe" ^
-    run frontend\app.py --server.port %FRONTEND_PORT% --server.headless true
+    run frontend\app.py ^
+    --server.port %FRONTEND_PORT% ^
+    --server.headless true ^
+    --server.runOnSave true
 
 REM ── Give Streamlit a moment then open the browser ──────────────────────────
-timeout /t 3 /nobreak >nul
+timeout /t 4 /nobreak >nul
 start "" "http://localhost:%FRONTEND_PORT%"
 
 echo.
 echo ============================================
-echo  App is running!
-echo  Frontend : http://localhost:%FRONTEND_PORT%
-echo  API docs : http://localhost:%BACKEND_PORT%/docs
+echo  Digital Twin AI v4.0 is running!
 echo.
-echo  Close this window or press any key to
-echo  shut down both servers.
+echo  Frontend  : http://localhost:%FRONTEND_PORT%
+echo  API docs  : http://localhost:%BACKEND_PORT%/docs
+echo  Health    : http://localhost:%BACKEND_PORT%/health
+echo.
+echo  Features:
+echo    * Dark / Light mode toggle in sidebar
+echo    * Milestone 3: Simulation Engine (9 pages)
+echo    * Hot-reload: save any .py to auto-refresh
+echo.
+echo  Press any key to shut down both servers.
 echo ============================================
 pause >nul
 

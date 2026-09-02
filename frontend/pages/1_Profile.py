@@ -1,4 +1,4 @@
-"""
+﻿"""
 Digital Twin AI — Profile
 """
 import os, sys
@@ -11,6 +11,7 @@ if _ROOT not in sys.path:
 from components.theme import inject_theme
 from components.ui import (
     bootstrap_session, require_auth, render_sidebar,
+    render_topbar,
     page_header, section_header, metric_row, empty_state,
 )
 
@@ -18,6 +19,7 @@ st.set_page_config(page_title="Profile · Digital Twin AI", page_icon="👤", la
 inject_theme()
 bootstrap_session()
 render_sidebar()
+render_topbar("Profile")
 require_auth()
 
 client = st.session_state.api_client

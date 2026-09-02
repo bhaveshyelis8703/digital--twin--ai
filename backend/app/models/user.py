@@ -16,6 +16,8 @@ class User(Base):
     age: Mapped[int] = mapped_column(Integer, nullable=False)
     occupation: Mapped[str] = mapped_column(String(100), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # M4: role-based access control
+    role: Mapped[str] = mapped_column(String(20), default="user", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
@@ -26,6 +28,8 @@ class User(Base):
     fitness_activities: Mapped[list["FitnessActivity"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     analytics_logs: Mapped[list["AnalyticsLog"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     simulation_results: Mapped[list["SimulationResult"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    # M4: chat history
+    conversation_messages: Mapped[list["ConversationMessage"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class FinancialRecord(Base):
@@ -139,3 +143,19 @@ class SimulationResult(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     user: Mapped["User"] = relationship(back_populates="simulation_results")
+
+
+class ConversationMessage(Base):
+    """Stores every chat turn for a user conversation (Milestone 4)."""
+    __tablename__ = "conversation_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    conversation_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    role: Mapped[str] = mapped_column(String(20), nullable=False)          # "user" | "assistant"
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    tools_used: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON list
+    response_time_ms: Mapped[float] = mapped_column(Float, nullable=True)
+    timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    user: Mapped["User"] = relationship(back_populates="conversation_messages")

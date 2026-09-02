@@ -1,4 +1,4 @@
-"""Digital Twin AI - Simulation Engine (Milestone 3)"""
+﻿"""Digital Twin AI - Simulation Engine (Milestone 3)"""
 import os, sys
 from datetime import datetime
 import plotly.graph_objects as go
@@ -11,7 +11,8 @@ if _ROOT not in sys.path:
 from components.theme import inject_theme
 from components.ui import (
     bootstrap_session, empty_state, insight_card, metric_row,
-    page_header, progress_bar, render_sidebar, require_auth, section_header,
+    page_header, progress_bar, render_sidebar,
+    render_topbar, require_auth, section_header,
 )
 
 st.set_page_config(
@@ -23,6 +24,7 @@ st.set_page_config(
 inject_theme()
 bootstrap_session()
 render_sidebar()
+render_topbar("Simulation")
 require_auth()
 
 client = st.session_state.api_client
@@ -832,8 +834,12 @@ with tab_risk:
                 text=[f"{v}" for v in risk_vals],
                 textposition="outside", textfont=dict(color="#94A3B8", size=11),
             ))
-            fig_h.update_layout(**_PL, height=260, yaxis=dict(**_PL["yaxis"], range=[0, 110]),
-                                title="Risk Score by Domain (0=safe, 100=critical)")
+            risk_layout = _PL.copy()
+            risk_layout["yaxis"] = {**_PL.get("yaxis", {}), "range": [0, 110]}
+            fig_h.update_layout(
+                **risk_layout, height=260,
+                title="Risk Score by Domain (0=safe, 100=critical)",
+            )
             st.plotly_chart(fig_h, use_container_width=True)
 
             # Risk factor cards

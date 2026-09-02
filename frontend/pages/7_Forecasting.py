@@ -1,4 +1,4 @@
-"""
+﻿"""
 Digital Twin AI - Forecasting & Predictive Analytics (Milestone 2)
 """
 import os, sys
@@ -14,7 +14,8 @@ if _ROOT not in sys.path:
 from components.theme import inject_theme
 from components.ui import (
     bootstrap_session, empty_state, insight_card, metric_row,
-    page_header, progress_bar, render_sidebar, require_auth, section_header,
+    page_header, progress_bar, render_sidebar,
+    render_topbar, require_auth, section_header,
 )
 
 st.set_page_config(
@@ -26,6 +27,7 @@ st.set_page_config(
 inject_theme()
 bootstrap_session()
 render_sidebar()
+render_topbar("Forecasting")
 require_auth()
 
 client = st.session_state.api_client
@@ -206,8 +208,12 @@ with tab_fin:
                 textposition="outside",
                 textfont=dict(color="#94A3B8", size=10),
             ))
-            fig2.update_layout(**_PL, height=260,
-                               yaxis=dict(**_PL["yaxis"], range=[0, max(e["predicted_expense"] for e in exp_fc) * 1.25]))
+            expense_layout = _PL.copy()
+            expense_layout["yaxis"] = {
+                **_PL.get("yaxis", {}),
+                "range": [0, max(e["predicted_expense"] for e in exp_fc) * 1.25],
+            }
+            fig2.update_layout(**expense_layout, height=260)
             st.plotly_chart(fig2, use_container_width=True)
 
     with col_sim:

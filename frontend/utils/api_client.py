@@ -26,10 +26,34 @@ class APIClient:
         response.raise_for_status()
         return response.json()
 
+    def get_bytes(self, path: str, token: str | None = None, timeout: int = 30) -> bytes:
+        """Fetch an authenticated binary response without JSON decoding."""
+        response = requests.get(
+            f"{self.base_url}{path}",
+            headers=self._auth_header(token),
+            timeout=timeout,
+        )
+        response.raise_for_status()
+        return response.content
+
     def post(self, path: str, payload: dict[str, Any] | None = None, token: str | None = None) -> Any:
         response = requests.post(f"{self.base_url}{path}", json=payload, headers=self._headers(token), timeout=10)
         response.raise_for_status()
         return response.json()
+
+    def post_stream(self, path: str, payload: dict[str, Any], token: str | None = None):
+        """Yield chunks from an authenticated streaming response."""
+        response = requests.post(
+            f"{self.base_url}{path}",
+            json=payload,
+            headers=self._headers(token),
+            timeout=60,
+            stream=True,
+        )
+        response.raise_for_status()
+        for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
+            if chunk:
+                yield chunk
 
     def post_form(self, path: str, data: dict[str, Any], token: str | None = None) -> Any:
         """Send a form-encoded POST (application/x-www-form-urlencoded).

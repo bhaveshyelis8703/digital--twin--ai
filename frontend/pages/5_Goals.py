@@ -1,4 +1,4 @@
-"""
+﻿"""
 Digital Twin AI — Goals
 """
 import os, sys
@@ -14,6 +14,7 @@ if _ROOT not in sys.path:
 from components.theme import inject_theme
 from components.ui import (
     bootstrap_session, require_auth, render_sidebar,
+    render_topbar,
     page_header, section_header, metric_row, empty_state,
     badge, insight_card,
 )
@@ -22,6 +23,7 @@ st.set_page_config(page_title="Goals · Digital Twin AI", page_icon="🎯", layo
 inject_theme()
 bootstrap_session()
 render_sidebar()
+render_topbar("Goals")
 require_auth()
 
 client = st.session_state.api_client
@@ -156,8 +158,9 @@ if goals:
         textposition="outside",
         textfont=dict(color="#94A3B8", size=11),
     ))
-    fig.update_layout(**_PLOTLY_LAYOUT, height=220,
-                      yaxis=dict(**_PLOTLY_LAYOUT["yaxis"], range=[0, 115]))
+    goal_layout = _PLOTLY_LAYOUT.copy()
+    goal_layout["yaxis"] = {**_PLOTLY_LAYOUT.get("yaxis", {}), "range": [0, 115]}
+    fig.update_layout(**goal_layout, height=220)
     st.plotly_chart(fig, use_container_width=True)
 
 else:

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Digital Twin AI — Study
 """
 import os, sys
@@ -14,6 +14,7 @@ if _ROOT not in sys.path:
 from components.theme import inject_theme
 from components.ui import (
     bootstrap_session, require_auth, render_sidebar,
+    render_topbar,
     page_header, section_header, metric_row, empty_state, insight_card,
 )
 
@@ -21,6 +22,7 @@ st.set_page_config(page_title="Study · Digital Twin AI", page_icon="📚", layo
 inject_theme()
 bootstrap_session()
 render_sidebar()
+render_topbar("Study")
 require_auth()
 
 client = st.session_state.api_client

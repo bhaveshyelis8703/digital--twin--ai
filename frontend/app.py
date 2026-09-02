@@ -22,6 +22,7 @@ from components.ui import (
     page_header,
     progress_bar,
     render_sidebar,
+    render_topbar,
     require_auth,
     section_header,
 )
@@ -35,6 +36,7 @@ st.set_page_config(
 inject_theme()
 bootstrap_session()
 render_sidebar()
+render_topbar("Dashboard")
 require_auth()
 
 # ── fetch all data ────────────────────────────────────────────────────────────
@@ -96,10 +98,49 @@ metric_row([
 
 st.markdown("<div style='height:1.5rem'></div>", unsafe_allow_html=True)
 
-# ── TWIN VISUALIZATION + DOMAIN SCORES ───────────────────────────────────────
-col_twin, col_scores = st.columns([1, 1], gap="large")
+# ── M4: AI ASSISTANT QUICK-ACCESS PANEL ──────────────────────────────────────
+is_light_dash = st.session_state.get("theme", "dark") == "light"
+_border = "rgba(37,99,235,.14)"
+_bg_hdr = "linear-gradient(135deg,#FFFFFF,#F0F5FF)" if is_light_dash else "linear-gradient(135deg,rgba(8,11,20,.99),rgba(14,19,42,.99))"
+_txt    = "#0F172A" if is_light_dash else "#F1F5F9"
 
-with col_twin:
+col_chat_panel, col_twin_panel = st.columns([1, 2], gap="large")
+
+with col_chat_panel:
+    section_header("🤖", "Digital Twin AI", "Ask about your future")
+    st.markdown(
+        f'<div style="background:{_bg_hdr};border:1px solid {_border};'
+        f'border-radius:16px;padding:1.1rem 1.25rem;margin-bottom:.75rem;">'
+        f'<div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.6rem;">'
+        f'<div style="width:36px;height:36px;background:linear-gradient(135deg,#2563EB,#7C3AED);'
+        f'border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;">🤖</div>'
+        f'<div>'
+        f'<div style="font-size:.88rem;font-weight:700;color:{_txt};">Digital Twin AI</div>'
+        f'<span style="font-size:.62rem;background:rgba(37,99,235,.15);color:#60A5FA;'
+        f'border-radius:99px;padding:2px 7px;font-weight:700;">AI POWERED</span>'
+        f'</div></div>'
+        f'<div style="font-size:.78rem;color:#64748B;">Ask anything about your finances, goals, or health.</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+    # Quick suggested questions
+    suggestions = [
+        "Will I save $50K in 3 years?",
+        "What if I invest 10% of income?",
+        "What is my biggest risk?",
+        "How to improve productivity?",
+    ]
+    for sq in suggestions:
+        if st.button(sq, key=f"dash_sq_{sq[:15]}", use_container_width=True):
+            st.session_state["quick_chat_q"] = sq
+            st.switch_page("pages/9_Chat.py")
+
+    st.markdown("<div style='height:.35rem'></div>", unsafe_allow_html=True)
+    if st.button("💬  Open Full AI Chat →", use_container_width=True, key="open_chat_full"):
+        st.switch_page("pages/9_Chat.py")
+
+with col_twin_panel:
     section_header("🧠", "Your Digital Twin", "Live alignment across all domains")
 
     # ── Digital Twin widget rendered inline (bypasses import cache) ──────────
@@ -155,10 +196,8 @@ with col_twin:
     )
     st.markdown(_twin_html, unsafe_allow_html=True)
 
-with col_scores:
-    section_header("📈", "Domain Performance", "Score breakdown by life area")
-    st.markdown("<div style='height:.5rem'></div>", unsafe_allow_html=True)
-
+    st.markdown("<div style='height:.75rem'></div>", unsafe_allow_html=True)
+    section_header("📈", "Domain Performance", "Score breakdown")
     domain_cfg = [
         ("📚", "Study",    "#2563EB"),
         ("💰", "Finance",  "#06B6D4"),
@@ -169,12 +208,10 @@ with col_scores:
     for icon, key, color in domain_cfg:
         sc = scores.get(key, 0)
         progress_bar(
-            f"{icon} {key}",
-            sc,
-            100,
+            f"{icon} {key}", sc, 100,
             color=f"linear-gradient(90deg,{color},{color}aa)",
         )
-        st.markdown("<div style='height:.25rem'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:.2rem'></div>", unsafe_allow_html=True)
 
 st.markdown("<div style='height:1.5rem'></div>", unsafe_allow_html=True)
 
