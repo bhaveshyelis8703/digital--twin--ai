@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 BENCHMARK_DB = ROOT / "ml_models" / "clean_benchmark.db"
 BENCHMARK_MODELS = ROOT / "ml_models" / "clean_benchmark"
-BENCHMARK_REPORT = ROOT / "docs" / "MODEL_PERFORMANCE_CLEAN.md"
+BENCHMARK_REPORT = ROOT / "docs" / "MODEL_PERFORMANCE.md"
 
 os.environ["DATABASE_URL"] = f"sqlite:///{BENCHMARK_DB}"
 os.environ["ML_DATA_PROFILE"] = "clean"

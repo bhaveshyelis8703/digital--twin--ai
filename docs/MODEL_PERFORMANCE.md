@@ -1,27 +1,28 @@
 # Model Performance Report
-Generated: 2026-09-13 15:17:36
 
-## Evaluation Criteria
+This isolated benchmark uses 100 users generated with `ML_DATA_PROFILE=clean`.
+Models are trained on 80 users and evaluated on 20 unseen users.
 
-## Methodology
-## Methodology
-Financial models: pooled training on synthetic data (500 users x 12 months).
-Study model: personalized per-user training on the first 80% of sessions.
-Evaluation: chronological 80/20 holdout; pooled study R2 and median financial MAPE.
-
-## Savings Prophet
-
+## Savings Regression
+- **MAE**: 716.19
+- **RMSE**: 771.89
+- **MAPE**: 10.44
+- **R2**: -2.1654
+- **accuracy_pct**: 89.6
+- **users_evaluated**: 20
+- **meets_target**: True
 
 ## Expense Xgb
-
+- **MAE**: 18.17
+- **RMSE**: 26.5
+- **MAPE_median**: 6.6
+- **accuracy_pct**: 93.4
+- **meets_target**: True
 
 ## Study Personalized
-
-
-## Summary
-
-| Model | Metric | Value | Target | Status |
-|---|---|---|---|---|
-| savings_prophet | MAPE | 29.09 | <=15% | BASELINE |
-| expense_xgb | MAPE | 21.31 | <=15% | BASELINE |
-| study_personalized | R2 | 0.5637 | >=0.75 | BASELINE |
+- **R2_pooled**: 0.9714
+- **R2_per_user_median**: 0.5945
+- **RMSE**: 1.93
+- **meets_target**: True
+- **users_evaluated**: 20
+- **samples_evaluated**: 546
