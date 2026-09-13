@@ -15,7 +15,8 @@ from typing import Any
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.metrics import mean_absolute_error, mean_squared_error
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.linear_model import Ridge
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.preprocessing import LabelEncoder
 
@@ -31,16 +32,59 @@ if str(_BACKEND) not in sys.path:
 
 from ml.data_preparation import engineer_financial_features, load_financial_data
 
+EXPENSE_CATEGORIES = [
+    "Education", "Entertainment", "Fitness", "Food", "Healthcare",
+    "Housing", "Shopping", "Transport", "Utilities",
+]
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _mape(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    mask = y_true != 0
-    if not mask.any():
+def safe_mape(y_true: np.ndarray, y_pred: np.ndarray, eps: float = 1.0) -> float:
+    """Robust MAPE that avoids divide-by-zero and extreme inflation near zero.
+
+    We use a floor on the absolute actual value, so near-zero savings periods do not
+    create meaningless percentage errors. This is a standard, defensible treatment for
+    financial series where actuals can legitimately be zero or close to zero.
+    """
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    denom = np.maximum(np.abs(y_true), eps)
+    valid = np.isfinite(y_true) & np.isfinite(y_pred)
+    if not np.any(valid):
         return 0.0
-    return float(np.mean(np.abs((y_true[mask] - y_pred[mask]) / y_true[mask])) * 100)
+    pct = np.abs((y_true[valid] - y_pred[valid]) / denom[valid]) * 100.0
+    return float(np.mean(pct)) if len(pct) else 0.0
+
+
+def summarize_savings_metrics(y_true: np.ndarray, y_pred: np.ndarray, eps: float = 1.0) -> dict:
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    valid = np.isfinite(y_true) & np.isfinite(y_pred)
+    y_true = y_true[valid]
+    y_pred = y_pred[valid]
+    if len(y_true) == 0:
+        return {"MAE": 0.0, "RMSE": 0.0, "MAPE": 0.0, "R2": 0.0, "valid_samples": 0}
+    if len(y_true) < 2:
+        r2 = 0.0
+    else:
+        try:
+            r2 = float(r2_score(y_true, y_pred))
+        except Exception:
+            r2 = 0.0
+    return {
+        "MAE": float(mean_absolute_error(y_true, y_pred)),
+        "RMSE": float(np.sqrt(mean_squared_error(y_true, y_pred))),
+        "MAPE": float(safe_mape(y_true, y_pred, eps=eps)),
+        "R2": r2,
+        "valid_samples": int(len(y_true)),
+    }
+
+
+def _mape(y_true: np.ndarray, y_pred: np.ndarray, eps: float = 1.0) -> float:
+    return safe_mape(y_true, y_pred, eps=eps)
 
 
 def _build_monthly_series(user_id: int) -> pd.DataFrame:
@@ -55,6 +99,52 @@ def _build_monthly_series(user_id: int) -> pd.DataFrame:
     return result.sort_values("ds").reset_index(drop=True)
 
 
+def _build_savings_rate_frame(df: pd.DataFrame) -> pd.DataFrame:
+    monthly = engineer_financial_features(df)
+    if monthly.empty or (monthly["income"] <= 0).all():
+        return pd.DataFrame()
+    monthly = monthly.copy()
+    monthly["savings_rate_target"] = monthly["net_savings"] / monthly["income"].clip(lower=1)
+    monthly["savings_rate"] = monthly["savings_rate_target"]
+    monthly["month_sin"] = np.sin(2 * np.pi * monthly["date"].dt.month / 12)
+    monthly["month_cos"] = np.cos(2 * np.pi * monthly["date"].dt.month / 12)
+    monthly["trend"] = np.arange(len(monthly), dtype=float)
+    return monthly
+
+
+def train_global_savings_regression(sample_user_ids: list[int]) -> dict:
+    """Train a pooled savings-rate model that is invariant to user income scale."""
+    frames = []
+    for uid in sample_user_ids:
+        df = load_financial_data(uid)
+        if not df.empty:
+            frame = _build_savings_rate_frame(df)
+            if len(frame) >= 4:
+                frames.append(frame)
+    if not frames:
+        return {"status": "no_data"}
+
+    for stale in list(_MODELS.glob("savings_prophet*.pkl")):
+        stale.unlink(missing_ok=True)
+
+    combined = pd.concat(frames, ignore_index=True)
+    feature_cols = ["month_sin", "month_cos", "trend"]
+    model = Ridge(alpha=1.0)
+    model.fit(combined[feature_cols], combined["savings_rate_target"])
+    residuals = combined["savings_rate_target"] - model.predict(combined[feature_cols])
+    bundle = {
+        "model": model,
+        "feature_cols": feature_cols,
+        "residual_std": float(residuals.std()),
+    }
+    path = _MODELS / "savings_regression.pkl"
+    # Remove stale Prophet artifacts so the benchmark cannot silently fall back to them.
+    for stale in list(_MODELS.glob("savings_prophet*.pkl")):
+        stale.unlink(missing_ok=True)
+    joblib.dump(bundle, path)
+    return {"status": "ok", "model_path": str(path), "samples": len(combined)}
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. PROPHET — SAVINGS PROJECTION
 # ─────────────────────────────────────────────────────────────────────────────
@@ -67,7 +157,7 @@ def train_savings_prophet(training_df: pd.DataFrame) -> Any:
         return None
 
     m = Prophet(
-        yearly_seasonality=True,
+        yearly_seasonality=len(training_df) >= 24,
         weekly_seasonality=False,
         daily_seasonality=False,
         seasonality_mode="multiplicative",
@@ -120,7 +210,9 @@ def train_and_save_prophet_for_user(user_id: int) -> dict:
 # 2. XGBOOST — EXPENSE CATEGORY FORECASTING
 # ─────────────────────────────────────────────────────────────────────────────
 
-def build_expense_features(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
+def build_expense_features(
+    df: pd.DataFrame, category_classes: list[str] | None = None
+) -> tuple[pd.DataFrame, pd.Series]:
     """Build feature matrix for XGBoost expense forecasting."""
     exp = df[df["record_type"] == "expense"].copy()
     if exp.empty:
@@ -131,8 +223,11 @@ def build_expense_features(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
     exp["year"]        = exp["date"].dt.year
     exp["day_of_week"] = exp["date"].dt.dayofweek
 
-    le = LabelEncoder()
-    exp["category_enc"] = le.fit_transform(exp["category"].astype(str))
+    classes = category_classes or EXPENSE_CATEGORIES
+    category_map = {category: index for index, category in enumerate(classes)}
+    exp["category_enc"] = (
+        exp["category"].astype(str).map(category_map).fillna(-1).astype(int)
+    )
 
     # monthly rolling avg per category
     monthly_cat = (
@@ -142,7 +237,7 @@ def build_expense_features(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
         .rename(columns={"amount": "cat_monthly_total"})
     )
     monthly_cat["rolling_3mo"] = monthly_cat.groupby("category")["cat_monthly_total"].transform(
-        lambda x: x.rolling(3, min_periods=1).mean()
+        lambda x: x.shift(1).rolling(3, min_periods=1).mean()
     )
     exp = exp.merge(
         monthly_cat[["year", "month", "category", "rolling_3mo"]],
@@ -159,6 +254,7 @@ def build_expense_features(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
         .reset_index()
         .rename(columns={"amount": "income_this_month"})
     )
+    inc["income_this_month"] = inc["income_this_month"].shift(1)
     exp = exp.merge(inc, on=["year", "month"], how="left").fillna(0)
 
     feature_cols = ["month", "day_of_week", "rolling_3mo", "category_enc", "income_this_month"]
@@ -281,15 +377,17 @@ def train_global_models(sample_user_ids: list[int]) -> dict:
             all_series.append(s)
         df = load_financial_data(uid)
         if not df.empty:
-            X, y = build_expense_features(df)
+            X, y = build_expense_features(df, category_classes=EXPENSE_CATEGORIES)
             if not X.empty:
                 all_X.append(X)
                 all_y.append(y)
 
     results = {}
 
-    # Global Prophet
-    if all_series:
+    # Global Prophet is disabled when the normalized savings-rate regression is active.
+    if (_MODELS / "savings_regression.pkl").exists():
+        results["prophet"] = "disabled: savings_regression active"
+    elif all_series:
         combined = pd.concat(all_series, ignore_index=True).sort_values("ds")
         m = Prophet(yearly_seasonality=True, weekly_seasonality=False,
                     daily_seasonality=False, interval_width=0.80)
@@ -303,8 +401,11 @@ def train_global_models(sample_user_ids: list[int]) -> dict:
         X_all = pd.concat(all_X, ignore_index=True)
         y_all = pd.concat(all_y, ignore_index=True)
         split = int(len(X_all) * 0.8)
-        xgb = XGBRegressor(n_estimators=100, max_depth=4,
-                           learning_rate=0.1, random_state=42)
+        xgb = XGBRegressor(
+            n_estimators=250, max_depth=3, learning_rate=0.04,
+            min_child_weight=3, subsample=0.85, colsample_bytree=0.9,
+            reg_alpha=0.05, reg_lambda=2.0, random_state=42,
+        )
         xgb.fit(X_all.iloc[:split], y_all.iloc[:split])
         pred = xgb.predict(X_all.iloc[split:])
         mape = _mape(y_all.iloc[split:].values, pred)

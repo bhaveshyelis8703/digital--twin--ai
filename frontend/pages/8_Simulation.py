@@ -43,6 +43,27 @@ _PL = dict(
 _COLORS = ["#2563EB","#7C3AED","#10B981","#F59E0B","#EF4444","#06B6D4","#EC4899","#14B8A6"]
 
 
+def _numeric(value, default=0.0):
+    """Normalize nullable API values before numeric formatting or comparison."""
+    if value is None or isinstance(value, bool):
+        return float(default)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _is_numeric(value):
+    """Identify values that can be represented in simulation charts."""
+    if value is None or isinstance(value, bool):
+        return False
+    try:
+        float(value)
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
 def _api(path, method="get", payload=None):
     try:
         if method == "get":
@@ -58,7 +79,7 @@ def _render_result(result: dict):
         st.error(result.get("error", "Simulation failed."))
         return
 
-    conf = result.get("confidence_score", 0)
+    conf = _numeric(result.get("confidence_score"))
     st.markdown(
         '<div style="background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.2);'
         'border-radius:12px;padding:.75rem 1.25rem;margin-bottom:1rem;display:flex;'
@@ -71,26 +92,23 @@ def _render_result(result: dict):
         unsafe_allow_html=True,
     )
 
-    cur  = result.get("current_state", {})
-    fut  = result.get("future_state",  {})
-    diff = result.get("difference",    {})
+    cur  = result.get("current_state") or {}
+    fut  = result.get("future_state") or {}
+    diff = result.get("difference") or {}
 
     numeric_keys = [k for k in set(cur) | set(fut)
-                    if isinstance(cur.get(k, fut.get(k)), (int, float))][:6]
+                    if _is_numeric(cur.get(k)) or _is_numeric(fut.get(k))][:6]
 
     if numeric_keys:
         cols = st.columns(min(len(numeric_keys), 3))
         for i, k in enumerate(numeric_keys[:3]):
-            c_val = cur.get(k, 0)
-            f_val = fut.get(k, 0)
-            d_val = diff.get(k, 0)
+            c_val = _numeric(cur.get(k))
+            f_val = _numeric(fut.get(k))
+            d_val = _numeric(diff.get(k))
             with cols[i]:
                 up = d_val >= 0
                 label = k.replace("_", " ").title()
-                if isinstance(f_val, float):
-                    f_str = f"{f_val:,.2f}" if abs(f_val) < 1_000_000 else f"{f_val:,.0f}"
-                else:
-                    f_str = str(f_val)
+                f_str = f"{f_val:,.2f}" if abs(f_val) < 1_000_000 else f"{f_val:,.0f}"
                 st.markdown(
                     f'<div style="background:rgba(13,17,28,.9);border:1px solid rgba(37,99,235,.15);'
                     f'border-radius:12px;padding:1rem;text-align:center;">'
@@ -106,8 +124,8 @@ def _render_result(result: dict):
         # Bar chart: current vs future for all numeric keys
         if len(numeric_keys) >= 2:
             st.markdown("<div style='height:.75rem'></div>", unsafe_allow_html=True)
-            cur_vals = [float(cur.get(k, 0)) for k in numeric_keys]
-            fut_vals = [float(fut.get(k, 0)) for k in numeric_keys]
+            cur_vals = [_numeric(cur.get(k)) for k in numeric_keys]
+            fut_vals = [_numeric(fut.get(k)) for k in numeric_keys]
             labels   = [k.replace("_"," ").title() for k in numeric_keys]
             fig = go.Figure()
             fig.add_trace(go.Bar(name="Current", x=labels, y=cur_vals,

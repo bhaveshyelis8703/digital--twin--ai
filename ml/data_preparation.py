@@ -136,7 +136,7 @@ def engineer_financial_features(df: pd.DataFrame) -> pd.DataFrame:
     monthly = monthly.sort_values("date").reset_index(drop=True)
     monthly["rolling_3mo_avg"] = monthly["net_savings"].rolling(3, min_periods=1).mean()
     monthly["mom_growth"]      = monthly["net_savings"].pct_change().fillna(0).clip(-5, 5)
-    monthly["savings_rate"]    = monthly["net_savings"] / (monthly["net_savings"].abs() + 1)
+    monthly["savings_rate"]    = monthly["net_savings"] / monthly["income"].clip(lower=1)
     return monthly
 
 

@@ -89,7 +89,41 @@ def generate_savings_projection(user_id: int, months: int = 12) -> list[dict]:
             .reset_index(drop=True)
         )
 
-    # ── a) user-specific model: use for direct inference ─────────────────────
+    # ── a) normalized savings-rate model ─────────────────────────────────────
+    regression_model = _load("savings_regression.pkl")
+    if regression_model is not None and not feat.empty:
+        try:
+            from ml.financial_forecasting import _build_savings_rate_frame
+
+            frame = _build_savings_rate_frame(df)
+            if len(frame) >= 4:
+                last_date = frame["date"].max()
+                dates = pd.date_range(
+                    last_date + pd.offsets.MonthBegin(1), periods=months, freq="MS"
+                )
+                future = pd.DataFrame({"date": dates})
+                future["month_sin"] = np.sin(2 * np.pi * future["date"].dt.month / 12)
+                future["month_cos"] = np.cos(2 * np.pi * future["date"].dt.month / 12)
+                future["trend"] = np.arange(len(frame), len(frame) + months, dtype=float)
+                rates = np.clip(
+                    regression_model["model"].predict(
+                        future[["month_sin", "month_cos", "trend"]]
+                    ),
+                    -2,
+                    1,
+                )
+                income = float(frame["income"].median())
+                spread = max(abs(income * regression_model.get("residual_std", 0.1)), 50.0)
+                return [{
+                    "date": row["date"].strftime("%Y-%m-%d"),
+                    "predicted_savings": round(float(rate * income), 2),
+                    "lower_bound": round(float(rate * income - spread), 2),
+                    "upper_bound": round(float(rate * income + spread), 2),
+                } for row, rate in zip(future.to_dict("records"), rates)]
+        except Exception as exc:
+            logger.warning("Savings regression inference failed for user %s: %s", user_id, exc)
+
+    # ── b) user-specific model: use for direct inference ─────────────────────
     user_model = _load(f"savings_prophet_user_{user_id}.pkl")
     if user_model is not None:
         try:
@@ -101,7 +135,7 @@ def generate_savings_projection(user_id: int, months: int = 12) -> list[dict]:
         except Exception as exc:
             logger.warning("User Prophet inference failed for user %s: %s", user_id, exc)
 
-    # ── b) global model: refit on user data if enough history ─────────────────
+    # ── c) global model: refit on user data if enough history ─────────────────
     global_model = _load("savings_prophet.pkl")
     if global_model is not None and len(series) >= 3:
         try:
@@ -124,7 +158,7 @@ def generate_savings_projection(user_id: int, months: int = 12) -> list[dict]:
         except Exception as exc:
             logger.warning("Global Prophet refit failed for user %s: %s", user_id, exc)
 
-    # ── c) linear-trend fallback ──────────────────────────────────────────────
+    # ── d) linear-trend fallback ──────────────────────────────────────────────
     if not series.empty:
         last_val = float(series["y"].iloc[-1])
         trend    = float(series["y"].diff().mean()) if len(series) > 1 else 0.0

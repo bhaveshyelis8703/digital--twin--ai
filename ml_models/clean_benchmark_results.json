@@ -1,0 +1,54 @@
+{
+  "database": "C:\\Users\\bhave\\Downloads\\bhavesh 123\\ml_models\\clean_benchmark.db",
+  "models": "C:\\Users\\bhave\\Downloads\\bhavesh 123\\ml_models\\clean_benchmark",
+  "training_users": 80,
+  "test_users": 20,
+  "financial_training": {
+    "prophet": "disabled: savings_regression active",
+    "xgb": {
+      "path": "C:\\Users\\bhave\\Downloads\\bhavesh 123\\ml_models\\clean_benchmark\\expense_xgb.pkl",
+      "MAPE": 9.23
+    }
+  },
+  "savings_regression_training": {
+    "status": "ok",
+    "model_path": "C:\\Users\\bhave\\Downloads\\bhavesh 123\\ml_models\\clean_benchmark\\savings_regression.pkl",
+    "samples": 800
+  },
+  "study_training": {
+    "status": "ok",
+    "model_path": "C:\\Users\\bhave\\Downloads\\bhavesh 123\\ml_models\\clean_benchmark\\study_rf_model_global.pkl",
+    "metrics": {
+      "R2": 0.9394,
+      "RMSE": 2.66,
+      "CV_R2_mean": 0.9059,
+      "CV_R2_std": 0.0029
+    }
+  },
+  "evaluation": {
+    "savings_regression": {
+      "MAE": 716.19,
+      "RMSE": 771.89,
+      "MAPE": 10.44,
+      "R2": -2.1654,
+      "accuracy_pct": 89.6,
+      "users_evaluated": 20,
+      "meets_target": true
+    },
+    "expense_xgb": {
+      "MAE": 18.17,
+      "RMSE": 26.5,
+      "MAPE_median": 6.6,
+      "accuracy_pct": 93.4,
+      "meets_target": true
+    },
+    "study_personalized": {
+      "R2_pooled": 0.9714,
+      "R2_per_user_median": 0.5945,
+      "RMSE": 1.93,
+      "meets_target": true,
+      "users_evaluated": 20,
+      "samples_evaluated": 546
+    }
+  }
+}

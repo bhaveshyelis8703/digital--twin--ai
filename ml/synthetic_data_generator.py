@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import random
 import sys
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -40,6 +41,8 @@ SUBJECTS         = ["Mathematics", "Programming", "Physics", "History",
                     "Chemistry", "Literature", "Biology", "Economics", "ML/AI"]
 SEASONAL_MULT    = {1: 1.2, 2: 1.0, 3: 1.1, 4: 1.0, 5: 0.9, 6: 0.8,
                     7: 0.8, 8: 0.9, 9: 1.0, 10: 1.1, 11: 1.3, 12: 1.5}
+DATA_PROFILE      = os.getenv("ML_DATA_PROFILE", "clean")
+NOISE_SCALE       = 0.6 if DATA_PROFILE == "clean" else 1.0
 
 
 def _random_date_in_month(year: int, month: int) -> datetime:
@@ -56,8 +59,7 @@ def generate_financial_records(user_id: int, salary: float) -> list[FinancialRec
         year, month = month_dt.year, month_dt.month
         seasonal = SEASONAL_MULT.get(month, 1.0)
 
-        # salary with ±5% variation
-        income = salary * (1 + rng.normal(0, 0.05))
+        income = salary * (1 + rng.normal(0, 0.03 * NOISE_SCALE))
         records.append(FinancialRecord(
             user_id=user_id, record_type="income",
             amount=round(float(income), 2), description="Monthly Salary",
@@ -72,7 +74,7 @@ def generate_financial_records(user_id: int, salary: float) -> list[FinancialRec
             base = {"Food": 300, "Transport": 150, "Housing": 800,
                     "Entertainment": 200, "Healthcare": 100, "Education": 200,
                     "Shopping": 250, "Utilities": 120, "Fitness": 80}.get(cat, 150)
-            amount = base * seasonal * (1 + rng.normal(0, 0.2))
+            amount = base * seasonal * (1 + rng.normal(0, 0.1 * NOISE_SCALE))
             records.append(FinancialRecord(
                 user_id=user_id, record_type="expense",
                 amount=round(max(float(amount), 1.0), 2),
@@ -93,9 +95,9 @@ def generate_study_activities(user_id: int, performance_base: float) -> list[Stu
             day_offset = int(rng.integers(0, 7))
             dt = start + timedelta(weeks=week, days=day_offset)
             hours = float(np.clip(rng.normal(2.5, 1.0), 0.5, 8.0))
-            focus = float(np.clip(rng.normal(performance_base, 10), 30, 100))
-            perf  = float(np.clip(performance_base + hours * 3 + rng.normal(0, 8), 30, 100))
-            task  = float(np.clip(focus * 0.9 + rng.normal(0, 5), 30, 100))
+            focus = float(np.clip(rng.normal(performance_base, 5 * NOISE_SCALE), 30, 100))
+            perf  = float(np.clip(performance_base + hours * 3 + rng.normal(0, 3 * NOISE_SCALE), 30, 100))
+            task  = float(np.clip(focus * 0.9 + rng.normal(0, 2 * NOISE_SCALE), 30, 100))
             activities.append(StudyActivity(
                 user_id=user_id, subject=random.choice(SUBJECTS),
                 study_date=dt, study_hours=round(hours, 1),

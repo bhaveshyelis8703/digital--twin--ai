@@ -11,7 +11,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import KFold, cross_val_score
@@ -34,13 +34,18 @@ from ml.data_preparation import load_study_data
 # FEATURE BUILDER
 # ─────────────────────────────────────────────────────────────────────────────
 
-def build_study_features(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
+def build_study_features(
+    df: pd.DataFrame, subject_classes: list[str] | None = None
+) -> tuple[pd.DataFrame, pd.Series]:
     if df.empty or len(df) < 5:
         return pd.DataFrame(), pd.Series(dtype=float)
 
     df = df.sort_values("study_date").copy()
-    le = LabelEncoder()
-    df["subject_encoded"] = le.fit_transform(df["subject"].astype(str))
+    classes = sorted(subject_classes or df["subject"].astype(str).unique())
+    subject_map = {subject: index for index, subject in enumerate(classes)}
+    df["subject_encoded"] = (
+        df["subject"].astype(str).map(subject_map).fillna(-1).astype(int)
+    )
     df["month"]           = df["study_date"].dt.month
     df["day_of_week"]     = df["study_date"].dt.dayofweek
     df["week_num"]        = df["study_date"].dt.isocalendar().week.astype(int)
@@ -54,11 +59,19 @@ def build_study_features(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
         ].shape[0]
     )
     df["peak_study_hour"] = df["study_date"].dt.hour
+    # Use only observations before the current session to personalize the model.
+    df["history_performance_mean"] = (
+        df["performance_score"].expanding().mean().shift(1).fillna(50.0)
+    )
+    df["history_focus_mean"] = (
+        df["focus_score"].expanding().mean().shift(1).fillna(50.0)
+    )
 
     feature_cols = [
         "study_hours", "focus_score", "task_completion",
         "subject_encoded", "month", "day_of_week",
-        "study_streak_days", "peak_study_hour",
+        "study_streak_days", "peak_study_hour", "history_performance_mean",
+        "history_focus_mean",
     ]
     X = df[feature_cols]
     y = df["performance_score"]
@@ -77,13 +90,14 @@ def train_study_model(user_id: int | None = None,
     if training_df is None or training_df.empty:
         return {"status": "no_data"}
 
-    X, y = build_study_features(training_df)
+    subject_classes = sorted(training_df["subject"].astype(str).unique())
+    X, y = build_study_features(training_df, subject_classes=subject_classes)
     if X.empty or len(X) < 8:
         return {"status": "insufficient_data", "n": len(X)}
 
-    rf = RandomForestRegressor(
-        n_estimators=200, max_depth=10,
-        min_samples_leaf=1, min_samples_split=2,
+    rf = ExtraTreesRegressor(
+        n_estimators=300, max_depth=12,
+        min_samples_leaf=2, max_features=0.85,
         random_state=42, n_jobs=-1,
     )
 
@@ -101,8 +115,7 @@ def train_study_model(user_id: int | None = None,
     path   = _MODELS / f"study_rf_model_{suffix}.pkl"
     meta   = {
         "feature_cols": list(X.columns),
-        "label_encoder_classes": list(pd.get_dummies(
-            training_df["subject"].astype(str)).columns),
+            "label_encoder_classes": subject_classes,
     }
     joblib.dump({"model": rf, "meta": meta}, path)
     return {

@@ -1,7 +1,14 @@
 from logging.config import fileConfig
+import sys
+from pathlib import Path
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
+
+# Keep migrations importable from both the repository root and backend directory.
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
 
 from app.core.config import settings
 from app.core.database import Base

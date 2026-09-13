@@ -40,12 +40,17 @@ def performance_prediction(
     try:
         from app.services.study_service import get_performance_prediction
         from ml.data_preparation import load_study_data
+        from ml.study_prediction import build_study_features
 
         df = load_study_data(current_user.id)
         if df.empty:
             return {"predicted_score": None, "message": "No study data yet"}
 
         last = df.sort_values("study_date").iloc[-1]
+        ordered = df.sort_values("study_date")
+        history = ordered.iloc[:-1]
+        history_performance = float(history["performance_score"].mean()) if not history.empty else 50.0
+        history_focus = float(history["focus_score"].mean()) if not history.empty else 50.0
         features = {
             "study_hours":       float(last.get("study_hours", 2)),
             "focus_score":       float(last.get("focus_score", 70)),
@@ -55,6 +60,8 @@ def performance_prediction(
             "day_of_week":       int(last["study_date"].dayofweek),
             "study_streak_days": 3,
             "peak_study_hour":   int(last["study_date"].hour),
+            "history_performance_mean": history_performance,
+            "history_focus_mean": history_focus,
         }
         return get_performance_prediction(current_user.id, features)
     except Exception as e:

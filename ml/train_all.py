@@ -46,8 +46,9 @@ print("\n[2/4] Training ML modelsâ€¦")
 # Financial â€” global Prophet + XGBoost
 print("  â€¢ Financial: Prophet + XGBoostâ€¦")
 t0 = time.perf_counter()
-from ml.financial_forecasting import train_global_models
-fin_results = train_global_models(sample_ids[:50])
+from ml.financial_forecasting import train_global_models, train_global_savings_regression
+fin_results = train_global_models(sample_ids[:80])
+regression_result = train_global_savings_regression(sample_ids[:80])
 print(f"    Prophet â†’ {fin_results.get('prophet','not trained')}")
 print(f"    XGBoost â†’ {fin_results.get('xgb','not trained')}")
 print(f"    Done in {time.perf_counter()-t0:.1f}s")
